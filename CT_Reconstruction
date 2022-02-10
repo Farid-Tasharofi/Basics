@@ -1,0 +1,84 @@
+import numpy as np
+from skimage.transform import rotate, radon, rescale
+from scipy.fft import fft, ifft, fftfreq, fftshift
+import skimage
+import cv2
+from PIL import Image
+import matplotlib.pyplot as plt
+
+
+def save_image(numpy=np.array([])):
+    path = "./sinogram2.png"
+    img_float32 = np.float32(numpy)
+    frame = cv2.cvtColor(img_float32, cv2.COLOR_BGR2RGB)
+    cv2.imwrite(path, frame)
+
+
+def FFT(projections):
+    return fft.rfft(projections, axis=1)
+
+
+def ramp_filter(sinogram_FFT):  # FIX IT
+    ramp = np.floor(np.arange(0.5, (sinogram_FFT.shape[1]//2)-0 + 0.1, 0.5))
+    return sinogram_FFT * ramp
+
+
+def backproject(sinogram, theta):
+    imageLen = sinogram.shape[0]
+    reconstructed_Matrix = np.zeros((imageLen, imageLen))
+    x = np.arange(imageLen)-imageLen/2
+    y = x.copy()
+    X, Y = np.meshgrid(x, y)
+    plt.ion()
+    fig2, ax = plt.subplots()
+    im = plt.imshow(reconstructed_Matrix, cmap='gray')
+    theta = theta*np.pi/180
+    numAngles = len(theta)
+
+    for n in range(numAngles):
+        Xrot = X*np.sin(theta[n])-Y*np.cos(theta[n])
+        XrotCor = np.round(Xrot+imageLen/2)
+        XrotCor = XrotCor.astype('int')
+        projMatrix = np.zeros((imageLen, imageLen))
+        m0, m1 = np.where((XrotCor >= 0) & (XrotCor <= (imageLen-1)))
+        get_projection = sinogram[:, n]
+        projMatrix[m0, m1] = get_projection[XrotCor[m0, m1]]
+        reconstructed_Matrix += projMatrix
+        im.set_data(Image.fromarray(
+            (reconstructed_Matrix-np.min(reconstructed_Matrix))/np.ptp(reconstructed_Matrix)*255))
+        ax.set_title('Theta = %.2f degrees' % (theta[n]*180/np.pi))
+        fig2.canvas.draw()
+        fig2.canvas.flush_events()
+    plt.close()
+    plt.ioff()
+    save_image(reconstructed_Matrix)
+    return reconstructed_Matrix   # FIX IT
+
+
+def iFFT(operator):
+    return fft.irfft(operator, axis=1)
+
+
+sample_img = skimage.io.imread("./Phantom.bmp", as_gray=True)
+sample_img = rescale(sample_img, scale=1, mode='reflect', channel_axis=None)
+theta = np.linspace(0.0, 180., max(sample_img.shape), endpoint=False)
+direct_sinogram = radon(sample_img, theta)
+save_image(direct_sinogram)
+backproject(direct_sinogram, theta)
+cv2.imwrite('0_direct_sinogram.png', direct_sinogram)
+direct_packprojection = backproject(direct_sinogram, theta)
+cv2.imwrite('1_direct_packprojection.png', direct_packprojection)
+sinogram_FFT = FFT(direct_sinogram)
+cv2.imwrite('2_sinogram_FFT.png',
+            sinogram_FFT)
+print("Frequency domain projections multipled with a ramp filter")
+filtered_sinogram_FFT = ramp_filter(sinogram_FFT)
+cv2.imwrite('3_filtered_sinogram_FFT.png',
+            filtered_sinogram_FFT)
+filtered_sinogram = iFFT(
+    filtered_sinogram_FFT)
+backproject(filtered_sinogram, theta)
+cv2.imwrite('4_filtered_sinogram.png',
+            filtered_sinogram)
+filtered_backprojection = backproject(filtered_sinogram)
+cv2.imwrite('5_filtered_backprojection.png', filtered_backprojection)
