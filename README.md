@@ -10,7 +10,7 @@
 **- chArUco.py:** This will create ChArUco board and get different views to find out camera parameters. 
 
 
-**- Basic_Filters.py:** This id basic filters regarding images. 
+**- Basic_Filters.py:** This is basic filters regarding images. 
 
 
 **- CT_Reconstruction.py:** Projection (Sinogram), adding ramp filter and backprojection. (in progress) 
